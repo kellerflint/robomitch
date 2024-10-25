@@ -37,7 +37,7 @@ class RealTimeSink(MP3Sink):
         self.buffers = {}
         self.loop = asyncio.get_event_loop()
 
-    def write(self, data, user): 
+    def write(self, data, user):
         if user not in self.buffers:
             self.buffers[user] = AudioBuffer()
 
@@ -53,7 +53,7 @@ class RealTimeSink(MP3Sink):
 
         # Check for silence in the current data
         current_time = time.time()
-        if (current_time - buffer.last_sound_timestamp) >= 1 and buffer.pending_save:  # if it's been a second since last audio
+        if (current_time - buffer.last_sound_timestamp) >= 1 and buffer.pending_save:
             if len(buffer.audio_buffer) > 500: # min length of audio file
                 filename = 'temp.mp3'
                 buffer.audio_buffer.export(filename, format='mp3')
@@ -64,7 +64,7 @@ class RealTimeSink(MP3Sink):
         # Schedule next check if needed
         if buffer.scheduled_check:
             buffer.scheduled_check.cancel()
-        
+
         # Use call_later instead of create_task
         buffer.scheduled_check = self.loop.call_later(1.0, self.check_silence, buffer)
 
@@ -116,7 +116,7 @@ async def finish_callback_combine(sink: MP3Sink):
     combined_dir = f'recordings/combined'
     filename = f'{combined_dir}/{timestamp}.mp3'
     os.makedirs(combined_dir, exist_ok=True)
-    if len(longest) < 10000: # 10 second minimum recording length 
+    if len(longest) < 10000: # 10 second minimum recording length
         print('Recording too short, not saving')
         return
     longest.export(filename, format='mp3')
@@ -144,14 +144,18 @@ async def join(ctx: discord.ApplicationContext):
 
     if not voice:
         return await ctx.respond('You are not in a voice channel')
-    
+
     voice_client: discord.VoiceClient = await voice.channel.connect()
     voice_client.start_recording(RealTimeSink(), finish_callback_dummy)
 
     return await ctx.respond(f'Joined {voice.channel.name}')
 
 @bot.event
-async def on_voice_state_update(member: discord.Member, before: discord.VoiceState, after: discord.VoiceState):
+async def on_voice_state_update(
+    member: discord.Member, 
+    before: discord.VoiceState, 
+    after: discord.VoiceState
+):
     print('voice state update', member.id, before.channel, after.channel)
     if member.id == TARGET_USER_ID:
         if after.channel is not None:
