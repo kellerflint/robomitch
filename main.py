@@ -1,4 +1,5 @@
 import datetime
+import time
 import io
 import os
 import discord
@@ -22,6 +23,40 @@ async def on_ready():
 
     print('commands synced')
 
+class AudioBuffer:
+    def __init__(self):
+        self.audio_buffer = pydub.AudioSegment.empty()
+        self.last_sound_timestamp = time.time()
+
+class RealTimeSink(MP3Sink):
+    def __init__(self):
+        super().__init__()
+        self.buffers = {}
+
+    def write(self, data, user): 
+        if user not in self.buffers:
+            self.buffers[user] = AudioBuffer()
+
+        buffer = self.buffers[user]
+
+        audio_segment = pydub.AudioSegment(data=data, sample_width=2, frame_rate=48000, channels=2)
+
+        if audio_segment.dBFS > -40:
+            buffer.last_sound_timestamp = time.time()
+        
+        buffer.audio_buffer += audio_segment
+
+        current_time = time.time()
+
+        if (current_time - buffer.last_sound_timestamp) >= 1:
+            if len(buffer.audio_buffer) > 500: # min .5 second
+                filename = 'temp.mp3'
+                buffer.audio_buffer.export(filename, format='mp3')
+                print(f'Recording saved to {filename}')
+            buffer.audio_buffer = pydub.AudioSegment.empty()
+        
+        super().write(data, user)
+
 async def finish_callback_combine(sink: MP3Sink):
     audio_segs: list[pydub.AudioSegment] = []
     files: list[discord.File] = []
@@ -44,12 +79,18 @@ async def finish_callback_combine(sink: MP3Sink):
         longest = longest.overlay(seg)
 
     timestamp = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
-    filename = f'recordings/{timestamp}.mp3'
+    combined_dir = f'recordings/combined'
+    filename = f'{combined_dir}/{timestamp}.mp3'
+    os.makedirs(combined_dir, exist_ok=True)
     if len(longest) < 10000: # 10 second minimum recording length 
         print('Recording too short, not saving')
         return
     longest.export(filename, format='mp3')
     print('Recording saved to', filename)
+
+async def finish_callback_dummy(sink: RealTimeSink):
+    print('finish callback dummy executed')
+    pass
 
 async def finish_callback_single(sink: MP3Sink):
     for user_id, audio in sink.audio_data.items():
@@ -71,7 +112,7 @@ async def join(ctx: discord.ApplicationContext):
         return await ctx.respond('You are not in a voice channel')
     
     voice_client: discord.VoiceClient = await voice.channel.connect()
-    voice_client.start_recording(MP3Sink(), finish_callback_single)
+    voice_client.start_recording(RealTimeSink(), finish_callback_dummy)
 
     return await ctx.respond(f'Joined {voice.channel.name}')
 
