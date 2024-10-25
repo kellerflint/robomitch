@@ -1,0 +1,1 @@
+https://github.com/Pycord-Development/pycord/blob/master/examples/audio_recording_merged.py
