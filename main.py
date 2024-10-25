@@ -1,7 +1,6 @@
 import asyncio
 import datetime
 import time
-import io
 import os
 import discord
 import pydub
@@ -11,7 +10,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 bot = discord.Bot()
-TARGET_USER_ID = 274340078015217666
+TARGET_USER_ID = None # or Discord ID or None
 
 if not os.path.exists('recordings'):
     os.mkdir('recordings')
@@ -157,7 +156,7 @@ async def on_voice_state_update(
     after: discord.VoiceState
 ):
     print('voice state update', member.id, before.channel, after.channel)
-    if member.id == TARGET_USER_ID:
+    if  TARGET_USER_ID and member.id == TARGET_USER_ID:
         if after.channel is not None:
             # Disconnect from previous channel
             before_voice_client: discord.VoiceClient = member.guild.voice_client
