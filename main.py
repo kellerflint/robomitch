@@ -66,14 +66,11 @@ class RealTimeSink(MP3Sink):
             buffer.scheduled_check.cancel()
         
         # Use call_later instead of create_task
-        buffer.scheduled_check = self.loop.call_later(
-            1.0,  # delay in seconds
-            lambda: self.loop.create_task(self.check_silence_async(buffer))
-        )
+        buffer.scheduled_check = self.loop.call_later(1.0, self.check_silence, buffer)
 
         super().write(data, user)
 
-    async def check_silence_async(self, buffer):
+    def check_silence(self, buffer):
         """Async version of silence check"""
         current_time = time.time()
         if (current_time - buffer.last_sound_timestamp) >= 1 and buffer.pending_save:
