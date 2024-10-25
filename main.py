@@ -1,3 +1,4 @@
+import asyncio
 import datetime
 import time
 import io
@@ -27,11 +28,14 @@ class AudioBuffer:
     def __init__(self):
         self.audio_buffer = pydub.AudioSegment.empty()
         self.last_sound_timestamp = time.time()
+        self.scheduled_check = None
+        self.pending_save = False
 
 class RealTimeSink(MP3Sink):
     def __init__(self):
         super().__init__()
         self.buffers = {}
+        self.loop = asyncio.get_event_loop()
 
     def write(self, data, user): 
         if user not in self.buffers:
@@ -41,21 +45,54 @@ class RealTimeSink(MP3Sink):
 
         audio_segment = pydub.AudioSegment(data=data, sample_width=2, frame_rate=48000, channels=2)
 
-        if audio_segment.dBFS > -40:
+        if audio_segment.dBFS > -40: # Noise threshold
             buffer.last_sound_timestamp = time.time()
-        
+            buffer.pending_save = True
+
         buffer.audio_buffer += audio_segment
 
+        # Check for silence in the current data
         current_time = time.time()
-
-        if (current_time - buffer.last_sound_timestamp) >= 1:
-            if len(buffer.audio_buffer) > 500: # min .5 second
+        if (current_time - buffer.last_sound_timestamp) >= 1 and buffer.pending_save:  # if it's been a second since last audio
+            if len(buffer.audio_buffer) > 500: # min length of audio file
                 filename = 'temp.mp3'
                 buffer.audio_buffer.export(filename, format='mp3')
                 print(f'Recording saved to {filename}')
             buffer.audio_buffer = pydub.AudioSegment.empty()
+            buffer.pending_save = False
+
+        # Schedule next check if needed
+        if buffer.scheduled_check:
+            buffer.scheduled_check.cancel()
         
+        # Use call_later instead of create_task
+        buffer.scheduled_check = self.loop.call_later(
+            1.0,  # delay in seconds
+            lambda: self.loop.create_task(self.check_silence_async(buffer))
+        )
+
         super().write(data, user)
+
+    async def check_silence_async(self, buffer):
+        """Async version of silence check"""
+        current_time = time.time()
+        if (current_time - buffer.last_sound_timestamp) >= 1 and buffer.pending_save:
+            if len(buffer.audio_buffer) > 500:
+                timestamp = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+                dir = f'recordings/async'
+                filename = f'{dir}/{timestamp}.mp3'
+                os.makedirs(dir, exist_ok=True)
+                buffer.audio_buffer.export(filename, format='mp3')
+                print(f'Recording saved to {filename}')
+            buffer.audio_buffer = pydub.AudioSegment.empty()
+            buffer.pending_save = False
+
+
+    def cleanup(self):
+        """Cleanup method to cancel any scheduled checks"""
+        for buffer in self.buffers.values():
+            if buffer.scheduled_check:
+                buffer.scheduled_check.cancel()
 
 async def finish_callback_combine(sink: MP3Sink):
     audio_segs: list[pydub.AudioSegment] = []
