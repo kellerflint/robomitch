@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 bot = discord.Bot()
-TARGET_USER_ID = None # or Discord ID or None
+TARGET_USER_ID = 293246585674924035 # or Discord ID or None
 
 if not os.path.exists('recordings'):
     os.mkdir('recordings')
@@ -54,7 +54,10 @@ class RealTimeSink(MP3Sink):
         current_time = time.time()
         if (current_time - buffer.last_sound_timestamp) >= 1 and buffer.pending_save:
             if len(buffer.audio_buffer) > 500: # min length of audio file
-                filename = 'temp.mp3'
+                timestamp = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+                dir = f'recordings/async/{user}'
+                filename = f'{dir}/{timestamp}.mp3'
+                os.makedirs(dir, exist_ok=True)
                 buffer.audio_buffer.export(filename, format='mp3')
                 print(f'Recording saved to {filename}')
             buffer.audio_buffer = pydub.AudioSegment.empty()
@@ -65,17 +68,17 @@ class RealTimeSink(MP3Sink):
             buffer.scheduled_check.cancel()
 
         # Use call_later instead of create_task
-        buffer.scheduled_check = self.loop.call_later(1.0, self.check_silence, buffer)
+        buffer.scheduled_check = self.loop.call_later(1.0, self.check_silence, buffer, user)
 
         super().write(data, user)
 
-    def check_silence(self, buffer):
+    def check_silence(self, buffer, user):
         """Async version of silence check"""
         current_time = time.time()
         if (current_time - buffer.last_sound_timestamp) >= 1 and buffer.pending_save:
             if len(buffer.audio_buffer) > 500:
                 timestamp = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
-                dir = f'recordings/async'
+                dir = f'recordings/async/{user}'
                 filename = f'{dir}/{timestamp}.mp3'
                 os.makedirs(dir, exist_ok=True)
                 buffer.audio_buffer.export(filename, format='mp3')
@@ -167,7 +170,7 @@ async def on_voice_state_update(
 
             # Connect to new channel
             voice_client: discord.VoiceClient = await after.channel.connect()
-            voice_client.start_recording(MP3Sink(), finish_callback_combine)
+            voice_client.start_recording(MP3Sink(), finish_callback_dummy)
             print(f'Joined {after.channel.name} and started recording {member.display_name}')
 
         # Disconnect if user leaves voice channel
