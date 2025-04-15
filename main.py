@@ -170,7 +170,7 @@ async def on_voice_state_update(
 
             # Connect to new channel
             voice_client: discord.VoiceClient = await after.channel.connect()
-            voice_client.start_recording(MP3Sink(), finish_callback_dummy)
+            voice_client.start_recording(RealTimeSink(), finish_callback_dummy)
             print(f'Joined {after.channel.name} and started recording {member.display_name}')
 
         # Disconnect if user leaves voice channel

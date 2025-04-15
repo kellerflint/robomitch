@@ -1,3 +1,15 @@
 venv/
 .env
+
 recordings/
+clean_chunks/
+
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+*.db
+*.sqlite3
+
+*.log
